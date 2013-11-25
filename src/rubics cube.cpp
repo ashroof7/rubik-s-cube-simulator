@@ -6,12 +6,18 @@
 // Description : Hello World in C++, Ansi-style
 //============================================================================
 
+#include "utils.h"
 #include <iostream>
-#include "include/Angel.h"
+#include <GL/glew.h>
+#include <GL/glut.h>
+
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 
 using namespace std;
-using namespace Angel;
+using namespace glm;
 
 GLfloat screen_width = 600;
 GLfloat screen_height = 600;
@@ -23,11 +29,12 @@ const vec4 GREEN = vec4(0.0f, 1.0f, 0.0f, 1.0f);
 const vec4 BLUE = vec4(0.0f, 0.0f, 1.0f, 1.0f);
 const vec4 YELLOW = vec4(1.0f, 1.0f, 0.0f, 1.0f);
 
+mat4 I_mat = mat4(1.0); // Identity matrix
+mat4 M_mat = mat4(1.0); // Model matrix
+mat4 V_mat = mat4(1.0); // View matrix
 
-mat4 I = mat4(1.0); // Identity matrix
-mat4 M = mat4(1.0); // Model matrix
-mat4 V = mat4(1.0); // View matrix
-mat4 P = mat4(1.0); // projection matrix
+mat4 P_mat = mat4(1.0); // projection matrix
+
 GLuint P_loc, M_loc, V_loc; // locations pointers of P, M, V matrices in shader
 
 GLuint program;
@@ -79,12 +86,6 @@ static const GLfloat cube_vertices[] = {
 		-0.5f,  0.5f,  0.5f,
 		-0.5f,  0.5f, -0.5f,
 
-		-1.0f, -1.0f, -0.5f,
-		1.0f, -1.0f, -0.5f,
-		1.0f,  1.0f, -0.5f,
-		1.0f,  1.0f, -0.5f,
-		-1.0f,  1.0f, -0.5f,
-		-1.0f, -1.0f, -0.5f,
 };
 
 static const GLfloat cube_colors[] = {
@@ -166,14 +167,14 @@ void init_buffers(){
 	glBufferData(GL_ARRAY_BUFFER, sizeof(cube_vertices), cube_vertices, GL_STATIC_DRAW);
 	GLint posAttrib = glGetAttribLocation(program, "vPosition");
 	glEnableVertexAttribArray(posAttrib);
-	glVertexAttribPointer(posAttrib, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(0) );
+	glVertexAttribPointer(posAttrib, 3, GL_FLOAT, GL_FALSE, 0, 0 );
 
 	glGenBuffers(1, &vbo_cube_colors);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo_cube_colors);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(cube_colors), cube_colors, GL_STATIC_DRAW);
 	GLint colAttrib = glGetAttribLocation(program, "in_Color");
 	glEnableVertexAttribArray(colAttrib);
-	glVertexAttribPointer(colAttrib, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(0) );
+	glVertexAttribPointer(colAttrib, 3, GL_FLOAT, GL_FALSE, 0, 0 );
 
 	glGenBuffers(1, &ibo_cube_elements);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_cube_elements);
@@ -184,28 +185,29 @@ void init_buffers(){
 
 void init() {
 	// Load shaders and use the resulting shader program
-	program = InitShader("vshader.glsl", "fshader.glsl");
+	program = init_shaders("vshader.glsl", "fshader.glsl");
 	glUseProgram(program);
+
 
 
 	init_buffers();
 
-	M = Translate(vec3(0,0,3));
-	//	M = Scale(vec3(.5,.5,.5));
+//	M = translate(vec3(0,0,10));
+//		M = Scale(vec3(.5,.5,.5));
 
-	V = LookAt(vec3(1,1,-2), vec3(0,0,0), vec3(0,1,0));
-//	P = Ortho(-1,1,-1,1,-20,20);
-	//	P = Perspective(45.0f, 1.0f*screen_width/screen_height, 0.1f, 10.0f);
+	V_mat = lookAt(vec3(0,1,-10), vec3(0,0,10), vec3(0,1,0));
+//	P = Ortho(-2,2,-2,2,0,10);
+	P_mat = perspective(45.0f, 1.0f*screen_width/screen_height, 1.0f, 100.0f);
 
 
 	// matrices location in shader
 	P_loc = glGetUniformLocation(program, "P");
 	V_loc = glGetUniformLocation(program, "V");
 	M_loc = glGetUniformLocation(program, "M");
-	glUniformMatrix4fv(P_loc, 1, false, P);
-	glUniformMatrix4fv(V_loc, 1, false, V);
-	glUniformMatrix4fv(M_loc, 1, false, M);
 
+	glUniformMatrix4fv(P_loc, 1, false, value_ptr(P_mat));
+	glUniformMatrix4fv(V_loc, 1, false, value_ptr(V_mat));
+	glUniformMatrix4fv(M_loc, 1, false, value_ptr(M_mat));
 
 
 
