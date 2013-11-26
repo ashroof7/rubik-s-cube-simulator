@@ -14,17 +14,19 @@
 
 using namespace std;
 
-extern const GLfloat vertices[];
-extern const GLfloat colors[];
-extern const GLushort elements[];
 
 
 class cube {
 
+private:
+	static GLfloat vertices[];
+	static GLfloat colors[];
+	static GLushort elements[];
+
 public:
 	GLuint pos_vbo, col_vbo;
 	cube();
-	cube(GLuint program);
+	cube(GLuint program, int offset_index);
 	virtual ~cube();
 	void bind_position();
 	void bind_color();

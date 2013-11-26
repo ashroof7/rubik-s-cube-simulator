@@ -9,7 +9,7 @@
 #include <iostream>
 using namespace std;
 
-const GLfloat vertices[] = { -0.5f, -0.5f, -0.5f, 0.5f, -0.5f, -0.5f,
+GLfloat cube::vertices[] = { -0.5f, -0.5f, -0.5f, 0.5f, -0.5f, -0.5f,
 		0.5f, 0.5f, -0.5f, 0.5f, 0.5f, -0.5f, -0.5f, 0.5f, -0.5f, -0.5f, -0.5f,
 		-0.5f,
 
@@ -30,7 +30,7 @@ const GLfloat vertices[] = { -0.5f, -0.5f, -0.5f, 0.5f, -0.5f, -0.5f,
 
 };
 
-const GLfloat colors[] = { 0.0, 1.0, 0.0,  //blue
+GLfloat cube::colors[] = { 0.0, 1.0, 0.0,  //blue
 		0.0, 1.0, 0.0,  //blue
 		0.0, 1.0, 0.0,  //blue
 		0.0, 1.0, 0.0,  //blue
@@ -73,7 +73,7 @@ const GLfloat colors[] = { 0.0, 1.0, 0.0,  //blue
 		1.0, 0.0, 1.0,  //magenta
 		};
 
-const GLushort elements[] = {
+GLushort cube::elements[] = {
 // front
 		0, 1, 2, 2, 3, 0,
 		// top
@@ -88,7 +88,11 @@ const GLushort elements[] = {
 		1, 5, 6, 6, 2, 1, };
 
 
-cube::cube(GLuint program) {
+cube::cube(GLuint program, int offset_index){
+
+
+	cout<<"cube "<<offset_index<<endl;
+
 	glGenBuffers(1, &pos_vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, pos_vbo);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
@@ -105,10 +109,11 @@ cube::cube(GLuint program) {
 	glEnableVertexAttribArray(colAttrib);
 	glVertexAttribPointer(colAttrib, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
+
 }
 
 cube::cube() {
-	col_vbo = pos_vbo = -1;
+ col_vbo = pos_vbo = -1;
 }
 
 cube::~cube() {
@@ -117,6 +122,7 @@ cube::~cube() {
 //	glDeleteBuffers(1, &elements_ibo);
 }
 
+//TODO remove
 void cube::bind_position(){
 	glBindBuffer(GL_ARRAY_BUFFER, pos_vbo);
 }
