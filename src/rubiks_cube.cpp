@@ -10,6 +10,7 @@
 #include "utils.h"
 #include "cube.h"
 #include <iostream>
+#include <algorithm>
 #include <GL/glew.h>
 #include <GL/glut.h>
 
@@ -34,10 +35,10 @@ const vec4 YELLOW = vec4(1.0f, 1.0f, 0.0f, 1.0f);
 mat4 I_mat = mat4(1.0); // Identity matrix
 mat4 M_mat = mat4(1.0); // Model matrix
 mat4 V_mat = mat4(1.0); // View matrix
-
+mat4 S_mat = mat4(1.0); // Shape matrix (rotation of cube by mouse)
 mat4 P_mat = mat4(1.0); // projection matrix
 
-GLuint P_loc, M_loc, V_loc; // locations pointers of P, M, V matrices in shader
+GLuint P_loc, M_loc, V_loc, S_loc; // locations pointers of P, M, V, S matrices in shader
 
 GLuint program;
 
@@ -54,6 +55,12 @@ int temp_map[3][3][3];
 
 int rubic[3][3][3];// contains the cube index [0..26]
 vec3 angle[27];
+
+vec3 eye(5,5,-10);
+
+//mouse state variables
+int last_mx = 0, last_my = 0, cur_mx = 0, cur_my = 0;
+int arcball_on = false;
 
 void init_buffers(){
 	glGenVertexArrays(1, &vao);
@@ -96,7 +103,7 @@ void init() {
 	//	M = translate(vec3(0,0,10));
 	//		M = Scale(vec3(.5,.5,.5));
 
-	V_mat = lookAt(vec3(5,5,-10), vec3(0,0,0), vec3(0,1,0));
+	V_mat = lookAt(eye, vec3(0,0,0), vec3(0,1,0));
 	//	P = Ortho(-2,2,-2,2,0,10);
 	P_mat = perspective(45.0f, 1.0f*screen_width/screen_height, 1.0f, 100.0f);
 
@@ -105,10 +112,12 @@ void init() {
 	P_loc = glGetUniformLocation(program, "P");
 	V_loc = glGetUniformLocation(program, "V");
 	M_loc = glGetUniformLocation(program, "M");
+	S_loc = glGetUniformLocation(program, "S");
 
 	glUniformMatrix4fv(P_loc, 1, false, value_ptr(P_mat));
 	glUniformMatrix4fv(V_loc, 1, false, value_ptr(V_mat));
 	glUniformMatrix4fv(M_loc, 1, false, value_ptr(M_mat));
+	glUniformMatrix4fv(S_loc, 1, false, value_ptr(S_mat));
 
 	glClearColor(1.0, 1.0, 1.0, 1.0); // white background
 	// Enable depth test
@@ -215,13 +224,10 @@ void display(){
 	//	glDrawArrays(GL_TRIANGLES, 0,36);
 
 
-	cout<<"========================"<<endl;
-
 	for (int j = 0; j < 3; ++j){
 		for (int i = 0; i < 3; ++i){
 			for (int k = 0; k < 3; ++k){
-
-				M_mat = mat4(1.0);
+				// FIXME IN one CALL
 				mat4 rx  = rotate(angle[rubic[i][j][k]].x, vec3(1,0,0));
 				mat4 ry  = rotate(angle[rubic[i][j][k]].y, vec3(0,1,0));
 				mat4 rz  = rotate(angle[rubic[i][j][k]].z, vec3(0,0,1));
@@ -360,31 +366,98 @@ void onReshape(int width, int height) {
 	glViewport(0, 0, screen_width, screen_height);
 }
 
+
+
+/**
+ * copied from OpenGL wiki
+ * http://en.wikibooks.org/wiki/OpenGL_Programming/Modern_OpenGL_Tutorial_Arcball
+ *
+ * Get a normalized vector from the center of the virtual ball O to a
+ * point P on the virtual ball surface, such that P is aligned on
+ * screen's (X,Y) coordinates.  If (X,Y) is too far away from the
+ * sphere, return the nearest point on the virtual ball surface.
+ */
+vec3 get_arcball_vector(int x, int y) {
+	//	convert the x,y screen coordinates to [-1,1] coordinates (and reverse y coordinates)
+	vec3 P = vec3(1.0*x/screen_width*2 - 1.0, 	1.0*y/screen_height*2 - 1.0, 	0);
+	P.y = -P.y;
+
+	float OP_squared = P.x * P.x + P.y * P.y;
+	// use Pythagorean theorem to get P.z
+	if (OP_squared <= 1*1)
+		P.z = sqrt(1*1 - OP_squared);  // Pythagore
+	else
+		P = normalize(P);  // nearest point
+
+	return P;
+}
+
+
+void onIdle(){
+	if (cur_mx != last_mx || cur_my != last_my) {
+		vec3 va = get_arcball_vector(last_mx, last_my);
+		vec3 vb = get_arcball_vector( cur_mx,  cur_my);
+
+		// dot(va,vb) = ||va||.||vb||.cos(angle)
+		float angle = acos(  glm::min(1.0f, 1.0f*dot(va, vb)))*3;
+
+		vec3 axis_in_camera_coord = cross(va, vb);
+		mat3 camera2object = inverse(mat3(V_mat * S_mat));
+		vec3 axis_in_obj_coord =  camera2object * axis_in_camera_coord;
+		S_mat = rotate(S_mat, degrees(angle), axis_in_obj_coord);
+
+		last_mx = cur_mx;
+		last_my = cur_my;
+
+		glUniformMatrix4fv(S_loc, 1, false, value_ptr(S_mat));
+		glutPostRedisplay();
+	}
+}
+
+void onMouse(int button, int state, int x, int y) {
+	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
+		arcball_on = true;
+		last_mx = cur_mx = x;
+		last_my = cur_my = y;
+	} else {
+		arcball_on = false;
+	}
+}
+
+void onMotion(int x, int y) {
+	if (arcball_on) {  // if left button is pressed
+		cur_mx = x;
+		cur_my = y;
+	}
+}
+
+
 int main(int argc, char **argv) {
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGBA);
 	glutInitWindowSize(screen_width, screen_height);
-	//	glEnable(GL_DEPTH_TEST);
-	glutReshapeFunc(onReshape);
+
 	//	----------------------------------------
 	//	 If you are using freeglut, the next two lines will check if
 	//	 the code is truly 3.2. Otherwise, comment them out
 	//	glutInitContextVersion( 3, 2 );
 	//	glutInitContextProfile( GLUT_CORE_PROFILE );
 	//	----------------------------------------
-
 	glutCreateWindow("Ashraf's Cube");
 
-	glewInit();
 
+	glewInit();
 	init();
 
+	glutIdleFunc(onIdle);
 	glutDisplayFunc(display);
 	glutKeyboardFunc(keyboard);
 	glutSpecialFunc(keyboard_special);
-	//	glutMouseFunc(onMouse);
+	glutReshapeFunc(onReshape);
+	glutMouseFunc(onMouse);
+	glutMotionFunc(onMotion);
 	//	glutPassiveMotionFunc(onPassiveMotion);
-	//	glutReshapeFunc(onReshape);
+
 	glutMainLoop();
 	return 0;
 }
