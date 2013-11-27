@@ -35,10 +35,10 @@ const vec4 YELLOW = vec4(1.0f, 1.0f, 0.0f, 1.0f);
 mat4 I_mat = mat4(1.0); // Identity matrix
 mat4 M_mat = mat4(1.0); // Model matrix
 mat4 V_mat = mat4(1.0); // View matrix
-mat4 S_mat = mat4(1.0); // Shape matrix (rotation of cube by mouse)
+mat4 W_mat = mat4(1.0); // World matrix (rotation of cube by mouse)
 mat4 P_mat = mat4(1.0); // projection matrix
 
-GLuint P_loc, M_loc, V_loc, S_loc; // locations pointers of P, M, V, S matrices in shader
+GLuint P_loc, M_loc, V_loc, W_loc; // locations pointers of P, M, V, W matrices in shader
 
 GLuint program;
 
@@ -112,12 +112,12 @@ void init() {
 	P_loc = glGetUniformLocation(program, "P");
 	V_loc = glGetUniformLocation(program, "V");
 	M_loc = glGetUniformLocation(program, "M");
-	S_loc = glGetUniformLocation(program, "S");
+	W_loc = glGetUniformLocation(program, "W");
 
 	glUniformMatrix4fv(P_loc, 1, false, value_ptr(P_mat));
 	glUniformMatrix4fv(V_loc, 1, false, value_ptr(V_mat));
 	glUniformMatrix4fv(M_loc, 1, false, value_ptr(M_mat));
-	glUniformMatrix4fv(S_loc, 1, false, value_ptr(S_mat));
+	glUniformMatrix4fv(W_loc, 1, false, value_ptr(W_mat));
 
 	glClearColor(1.0, 1.0, 1.0, 1.0); // white background
 	// Enable depth test
@@ -231,12 +231,11 @@ void display(){
 				mat4 rx  = rotate(angle[rubic[i][j][k]].x, vec3(1,0,0));
 				mat4 ry  = rotate(angle[rubic[i][j][k]].y, vec3(0,1,0));
 				mat4 rz  = rotate(angle[rubic[i][j][k]].z, vec3(0,0,1));
-				mat4 t   = translate((j-1)*1.2f, (i-1)*1.2f, (k-1)*1.2f);
+				mat4 t   = translate((j-1)*1.0f, (i-1)*1.0f, (k-1)*1.0f);
 				M_mat = t*rz*ry*rx;
 
-
 				glUniformMatrix4fv(M_loc, 1, false, value_ptr(M_mat));
-				glDrawArrays(GL_TRIANGLES, 0,36);
+				c->draw();
 			}
 		}
 	}
@@ -402,14 +401,14 @@ void onIdle(){
 		float angle = acos(  glm::min(1.0f, 1.0f*dot(va, vb)))*3;
 
 		vec3 axis_in_camera_coord = cross(va, vb);
-		mat3 camera2object = inverse(mat3(V_mat * S_mat));
+		mat3 camera2object = inverse(mat3(V_mat * W_mat));
 		vec3 axis_in_obj_coord =  camera2object * axis_in_camera_coord;
-		S_mat = rotate(S_mat, degrees(angle), axis_in_obj_coord);
+		W_mat = rotate(W_mat, degrees(angle), axis_in_obj_coord);
 
 		last_mx = cur_mx;
 		last_my = cur_my;
 
-		glUniformMatrix4fv(S_loc, 1, false, value_ptr(S_mat));
+		glUniformMatrix4fv(W_loc, 1, false, value_ptr(W_mat));
 		glutPostRedisplay();
 	}
 }
