@@ -3,7 +3,7 @@
 // Author      : Ashraf Saleh
 // Version     :
 // Copyright   :
-// Description : Hello World in C++, Ansi-style
+// Description : rubik's cube simulator in C++, Ansi-style
 //============================================================================
 
 
@@ -25,13 +25,6 @@ using namespace glm;
 GLfloat screen_width = 600;
 GLfloat screen_height = 600;
 
-// Basic colors
-const vec4 WHITE = vec4(1.0f, 1.0f, 1.0f, 1.0f);
-const vec4 RED = vec4(1.0f, 0.0f, 0.0f, 1.0f);
-const vec4 GREEN = vec4(0.0f, 1.0f, 0.0f, 1.0f);
-const vec4 BLUE = vec4(0.0f, 0.0f, 1.0f, 1.0f);
-const vec4 YELLOW = vec4(1.0f, 1.0f, 0.0f, 1.0f);
-
 mat4 I_mat = mat4(1.0); // Identity matrix
 mat4 M_mat = mat4(1.0); // Model matrix
 mat4 V_mat = mat4(1.0); // View matrix
@@ -41,20 +34,14 @@ mat4 P_mat = mat4(1.0); // projection matrix
 GLuint P_loc, M_loc, V_loc, W_loc; // locations pointers of P, M, V, W matrices in shader
 
 GLuint program;
+GLuint vao; // vao
 
-GLuint vao, attribute_v_color; // vao
 
 cube *c;
-cube *rubik[3][3][3];
-
-vec3 rot[3][3][3];// amount of rotation in each direction
-vec3 temp[3][3]; // buffer the face that is going to rotate
-int cube_map[3][3][3][3]; //[i][j][k][i,j,k] contains the indices of cube[i][j][k]
-//                      in the currently displayed rubik
-int temp_map[3][3][3];
-
 int rubic[3][3][3];// contains the cube index [0..26]
-vec3 angle[27];
+vec3 self_angle[27]; // angle of rotation of cube around its center
+vec3 relative_angle[27]; // angle of rotation of cube around face center
+
 
 vec3 eye(5,5,-10);
 
@@ -62,31 +49,21 @@ vec3 eye(5,5,-10);
 int last_mx = 0, last_my = 0, cur_mx = 0, cur_my = 0;
 int arcball_on = false;
 
+
 void init_buffers(){
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
 
-	//	for (int i = 0; i < 3; ++i) {
-	//		for (int j = 0; j < 3; ++j) {
-	//			for (int k = 0; k < 3; ++k) {
-	//				rubik[i][i][k] = new cube(program, i/2.0, j/2.0, k/2.0 , i*3*3+j*3+k);
-	//			}
-	//		}
-	//	}
 	c = new cube(program, 0 );
 
 	// Initializing rotation matrix
 	for (int i = 0; i < 3; ++i)
 		for (int j = 0; j < 3; ++j)
 			for (int k = 0; k < 3; ++k){
-				rot[i][j][k]=vec3(0.0f,0.0f,0.0f);
-				//				cube_map[i][j][k][0] = i;
-				//				cube_map[i][j][k][1] = j;
-				//				cube_map[i][j][k][2] = k;
 				rubic[i][j][k] = i*9 + j*3 + k;
-				angle[rubic[i][j][k]] = vec3(0.0f,0.0f,0.0f);
+				self_angle[rubic[i][j][k]] = vec3(0.0f,0.0f,0.0f);
+				relative_angle[rubic[i][j][k]] = vec3(0.0f,0.0f,0.0f);
 			}
-
 
 }
 
@@ -100,13 +77,8 @@ void init() {
 
 	init_buffers();
 
-	//	M = translate(vec3(0,0,10));
-	//		M = Scale(vec3(.5,.5,.5));
-
 	V_mat = lookAt(eye, vec3(0,0,0), vec3(0,1,0));
-	//	P = Ortho(-2,2,-2,2,0,10);
 	P_mat = perspective(45.0f, 1.0f*screen_width/screen_height, 1.0f, 100.0f);
-
 
 	// matrices location in shader
 	P_loc = glGetUniformLocation(program, "P");
@@ -119,17 +91,24 @@ void init() {
 	glUniformMatrix4fv(M_loc, 1, false, value_ptr(M_mat));
 	glUniformMatrix4fv(W_loc, 1, false, value_ptr(W_mat));
 
-	glClearColor(1.0, 1.0, 1.0, 1.0); // white background
-	// Enable depth test
-	glEnable(GL_DEPTH_TEST);
-	// Accept fragment if it closer to the camera than the former one
-	glDepthFunc(GL_LESS);
+	glClearColor(0.9, 0.9, 0.9, 1.0); // white background
+
+	glEnable(GL_DEPTH_TEST);// Enable depth test
+	glDepthFunc(GL_LESS);// Accept fragment if it closer to the camera than the former one
 
 }
 
+GLfloat anim_angle = 5; // animation angle starts with 0 and ends with 90
+int anim_angle_cnt = 0; // increment value of the animation angle
 
+int cur_col = 0, cur_axis = 0, cur_direction = 0;
+bool in_animation = false;
 
 void rotate_face(int axis, int col, int direction){
+//	in_animation = true;
+	cur_col = col;
+	cur_axis = axis;
+	cur_direction = direction;
 	// axis 0 = x	1 = y	z = 2
 	// col indicates the col number to be rotated {0, 2} // cant take value 1
 	// direction denotes the angle 1 up 	 0 = down
@@ -158,93 +137,169 @@ void rotate_face(int axis, int col, int direction){
 	default : return;
 	}
 
-	cout <<">>>"<<*b << " "<<*a<<" "<<*c<<endl;
+	//	cout <<">>>"<<*b << " "<<*a<<" "<<*c<<endl;
 
 	int face[3][3]; // current face to rotate
 	// cubes to rotate
 	for ( i = 0; i < 3; ++i)
 		for (j = 0; j < 3; ++j){
 			face[i][j] = rubic[*a][*b][*c];
-			//			cout<<face[i][j]<<" "<<endl;
 		}
-	//	cout<<endl;
 
-	for (j = 2; j >= 0; --j){
-		for ( i = 2; i >=0; --i){
-			cout<<rubic[*a][*b][*c]<<" ";
+		for (j = 2; j >= 0; --j){
+			for ( i = 2; i >=0; --i){
+//				cout<<rubic[*a][*b][*c]<<" ";
+
+				cout<<self_angle[rubic[*a][*b][*c]].x<<" "
+						<<self_angle[rubic[*a][*b][*c]].y<<" "
+						<<self_angle[rubic[*a][*b][*c]].z<<"\t";
+			}
+			cout<<endl;
 		}
 		cout<<endl;
-	}
-	cout<<endl;
+
+
+	GLfloat thres = 360-anim_angle;
+	bool last_animation = false;
+	anim_angle_cnt++;
+
+	cout<<anim_angle_cnt<<endl;
+
+
+
 	if (direction){
-		// direction up
-		for ( i = 0; i < 3; ++i)
-			for ( j = 0; j < 3; ++j){
-				//				cout<<"Replace "<<rubic[*a][*b][*c]<<" with "<<face[j][2-i]<<endl;
-				angle[rubic[*a][*b][*c]][axis] +=(angle[rubic[*a][*b][*c]][axis]>270?-270.0f : 90.0f);
-				rubic[*a][*b][*c] = face[j][2-i];
-				//				swap(face[i][j], face[2-j][i]);
-			}
+			// direction up
+			for ( i = 0; i < 3; ++i)
+				for ( j = 0; j < 3; ++j){
+					relative_angle[rubic[*a][*b][*c]][axis] +=(relative_angle[rubic[*a][*b][*c]][axis]>thres?-thres : anim_angle);
+					// FIXME change condition to check on relative angle
+					if ( anim_angle > (90-anim_angle*anim_angle_cnt)){
+						last_animation = true;
+						cout<<"up"<<endl;
+						relative_angle[rubic[*a][*b][*c]][axis] = 0;
+							if (axis==0){
+								rubic[*a][*b][*c] = face[j][2-i];
+								swap(self_angle[rubic[*a][*b][*c]].y, self_angle[rubic[*a][*b][*c]].z);
+								self_angle[rubic[*a][*b][*c]].y *=-1;
+							}else if (axis==1){
+														rubic[*a][*b][*c] = face[2-j][i];
+								swap(self_angle[rubic[*a][*b][*c]].x, self_angle[rubic[*a][*b][*c]].z);
+								self_angle[rubic[*a][*b][*c]].z *=-1;
+							}else if (axis ==2){
+							rubic[*a][*b][*c] = face[2-j][i];
+								swap(self_angle[rubic[*a][*b][*c]].y, self_angle[rubic[*a][*b][*c]].x);
+								self_angle[rubic[*a][*b][*c]].x *=-1;
+							}
 
-		//rot[i][col][j][0] += (rot[i][col][j][0]>350?-350.0f : 10.0f);
-		//rot[i][col][j][0] += (rot[i][col][j][0]>270?-270.0f : 90.0f);
+							self_angle[rubic[*a][*b][*c]][axis] +=(self_angle[rubic[*a][*b][*c]][axis]>270?-270 : 90);
+					}
+				}
 
-	} else {
-		// direction down
-		for (i = 0; i < 3; ++i)
-			for (j = 0; j < 3; ++j){
-				//				cout<<"Replace "<<rubic[*a][*b][*c]<<" with "<<face[j][2-i]<<endl;
-				angle[rubic[*a][*b][*c]][axis] -=(angle[rubic[*a][*b][*c]][axis]<90?-270.0f : 90.0f);
-				rubic[*a][*b][*c] = face[2-j][i];
-				//				swap(face[i][j], face[2-j][i]);
-			}
-	}
+		} else {
+			// direction down
+			for (i = 0; i < 3; ++i)
+				for (j = 0; j < 3; ++j){
+					relative_angle[rubic[*a][*b][*c]][axis] -=(relative_angle[rubic[*a][*b][*c]][axis]<anim_angle?-thres : anim_angle);
+					if ( anim_angle > (90-anim_angle*anim_angle_cnt)){
+						last_animation = true;
+						cout<<"down"<<endl;
+						relative_angle[rubic[*a][*b][*c]][axis] = 0;
 
-	for (j = 2; j >= 0; --j){
-		for ( i = 2; i >=0; --i){
-			cout<<rubic[*a][*b][*c]<<" ";
+							if (axis==0){
+								rubic[*a][*b][*c] = face[2-j][i];
+								swap(self_angle[rubic[*a][*b][*c]].y, self_angle[rubic[*a][*b][*c]].z);
+								self_angle[rubic[*a][*b][*c]].z *=-1;
+							}else if (axis==1){
+								rubic[*a][*b][*c] = face[j][2-i];
+								swap(self_angle[rubic[*a][*b][*c]].x, self_angle[rubic[*a][*b][*c]].z);
+								self_angle[rubic[*a][*b][*c]].x *=-1;
+							}else if (axis ==2){
+								rubic[*a][*b][*c] = face[j][2-i];
+								swap(self_angle[rubic[*a][*b][*c]].y, self_angle[rubic[*a][*b][*c]].x);
+								self_angle[rubic[*a][*b][*c]].y *=-1;
+							}
+						self_angle[rubic[*a][*b][*c]][axis] -=(self_angle[rubic[*a][*b][*c]][axis]<90?-270 :90 );
+					}
+				}
 		}
-		cout<<endl;
+
+	if (last_animation){
+				cout<<"after "<<endl;
+				for (j = 2; j >= 0; --j){
+					for ( i = 2; i >=0; --i){
+//						cout<<rubic[*a][*b][*c]<<" ";
+						cout<<self_angle[rubic[*a][*b][*c]].x<<" "
+								<<self_angle[rubic[*a][*b][*c]].y<<" "
+								<<self_angle[rubic[*a][*b][*c]].z<<"\t";
+					}
+					cout<<endl;
+				}
+
+		cout<<"================"<<endl;
+		anim_angle_cnt = 0;
+		in_animation = false;
+		last_animation = false;
 	}
 }
 
 
+void shuffle(){
+	int n_moves = 20;
+	for (int i = 0; i < n_moves; ++i) {
+		rotate_face(0,2,1);
+		glutPostRedisplay();
+	}
+}
+
 void display(){
 
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT); // clear the window//
-	//	glClear(GL_COLOR_BUFFER_BIT); // clear the window//
 
 	glEnableVertexAttribArray(vao);
 	glBindVertexArray(vao);
-
-	// test on 1 cube
-	//	M_mat = translate(0*1.2f, 0*1.2f , 0*1.2f);
-	//	M_mat = rotate(M_mat, -90.0f, vec3(1,0,0));
-	//	glUniformMatrix4fv(M_loc, 1, false, value_ptr(M_mat));
-	//	glDrawArrays(GL_TRIANGLES, 0,36);
-
 
 	for (int j = 0; j < 3; ++j){
 		for (int i = 0; i < 3; ++i){
 			for (int k = 0; k < 3; ++k){
 				// FIXME IN one CALL
-				mat4 rx  = rotate(angle[rubic[i][j][k]].x, vec3(1,0,0));
-				mat4 ry  = rotate(angle[rubic[i][j][k]].y, vec3(0,1,0));
-				mat4 rz  = rotate(angle[rubic[i][j][k]].z, vec3(0,0,1));
-				mat4 t   = translate((j-1)*1.0f, (i-1)*1.0f, (k-1)*1.0f);
+				mat4 rx  = rotate(self_angle[rubic[i][j][k]].x, vec3(1,0,0));
+				mat4 ry  = rotate(self_angle[rubic[i][j][k]].y, vec3(0,1,0));
+				mat4 rz  = rotate(self_angle[rubic[i][j][k]].z, vec3(0,0,1));
+				mat4 t = mat4(1.0);
+
+				// translate to center of face
+				if (cur_axis == 0)
+					t   = translate((j-1)*1.2f, 0.0f, (k-1)*1.2f);
+				else if (cur_axis == 1)
+					t   = translate(0.0f, (i-1)*1.2f, (k-1)*1.2f);
+				else
+					t   = translate((j-1)*1.2f, (i-1)*1.2f, 0.0f);
+
+
+				//					t   = translate((j-1)*1.0f, (i-1)*1.0f, (k-1)*1.0f);
 				M_mat = t*rz*ry*rx;
 
+
+				rx  = rotate(relative_angle[rubic[i][j][k]].x, vec3(1,0,0));
+				ry  = rotate(relative_angle[rubic[i][j][k]].y, vec3(0,1,0));
+				rz  = rotate(relative_angle[rubic[i][j][k]].z, vec3(0,0,1));
+
+				// translate to position in face
+				if (cur_axis == 0)
+					t   = translate(0.0f, (i-1)*1.2f, 0.0f);
+				else if (cur_axis == 1)
+					t   = translate((j-1)*1.2f, 0.0f, 0.0f);
+				else
+					t   = translate(0.0f, 0.0f, (k-1)*1.2f);
+
+
+				M_mat = rz*ry*rx*t*M_mat;
 				glUniformMatrix4fv(M_loc, 1, false, value_ptr(M_mat));
 				c->draw();
 			}
 		}
 	}
 
-
-	/* Push each element in buffer_vertices to the vertex shader */
-	//	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_cube_elements);
-	//	int size; glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
-	//	glDrawElements(GL_TRIANGLES, size/sizeof(GLushort), GL_UNSIGNED_SHORT, 0);
 
 	glDisableVertexAttribArray(vao);
 	glutSwapBuffers();
@@ -264,6 +319,8 @@ void free_buffers(){
 }
 
 void keyboard(unsigned char key, int x, int y) {
+	if (in_animation)
+		return;
 	switch (key) {
 	case 033:
 		cout << "exit" << endl;
@@ -363,8 +420,10 @@ void onReshape(int width, int height) {
 	screen_width = width;
 	screen_height = height;
 	glViewport(0, 0, screen_width, screen_height);
-}
+	P_mat = perspective(45.0f, 1.0f*screen_width/screen_height, 1.0f, 100.0f);
+	glUniformMatrix4fv(P_loc, 1, false, value_ptr(P_mat));
 
+}
 
 
 /**
