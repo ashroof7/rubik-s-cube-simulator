@@ -9,6 +9,8 @@
 
 #include "utils.h"
 #include "cube.h"
+
+#include <time.h>
 #include <iostream>
 #include <algorithm>
 #include <GL/glew.h>
@@ -48,6 +50,37 @@ vec3 eye(5,5,-10);
 //mouse state variables
 int last_mx = 0, last_my = 0, cur_mx = 0, cur_my = 0;
 int arcball_on = false;
+
+// animation related variables
+GLfloat anim_angle = 5; // animation angle starts with 0 and ends with 90
+int anim_angle_cnt = 0; // increment value of the animation angle
+
+int cur_col = 0, cur_axis = 0, cur_direction = 0;
+bool in_animation = false;
+
+
+void rotate_face(int axis, int col, int direction);
+
+bool win(){
+		for (int i = 0; i < 3; ++i)
+				for (int j = 0; j < 3; ++j)
+					for (int k = 0; k < 3; ++k)
+						if(rubic[i][j][k] != i*9 + j*3 + k)
+							return false;
+	return true;
+}
+
+
+
+void shuffle(){
+	int n_moves = 20;
+	in_animation = false;
+//	for (int i = 0; i < n_moves; ++i) {
+		rotate_face(rand()%3,rand()%3,rand()&1);
+		glutPostRedisplay();
+//	}
+}
+
 
 
 void init_buffers(){
@@ -96,16 +129,27 @@ void init() {
 	glEnable(GL_DEPTH_TEST);// Enable depth test
 	glDepthFunc(GL_LESS);// Accept fragment if it closer to the camera than the former one
 
+
 }
 
-GLfloat anim_angle = 5; // animation angle starts with 0 and ends with 90
-int anim_angle_cnt = 0; // increment value of the animation angle
 
-int cur_col = 0, cur_axis = 0, cur_direction = 0;
-bool in_animation = false;
+
+void animation(int i){
+	cout<<"a7ee a7ee"<<endl;
+	rotate_face(cur_axis, cur_col, cur_direction);
+	glutPostRedisplay();
+	if (i > 0)
+		glutTimerFunc(10, animation, i-1);
+	else
+		in_animation = false;
+}
+
+
+bool first_animation = true;
 
 void rotate_face(int axis, int col, int direction){
-//	in_animation = true;
+	in_animation = true;
+
 	cur_col = col;
 	cur_axis = axis;
 	cur_direction = direction;
@@ -239,17 +283,20 @@ void rotate_face(int axis, int col, int direction){
 		anim_angle_cnt = 0;
 		in_animation = false;
 		last_animation = false;
+		if(win())
+			cout<<"###### win #####"<<endl;
 	}
+
+	if (first_animation){
+		first_animation = false;
+		cout<<"bacal aho"<<endl;
+		glutTimerFunc(10, animation, 16);
+	}
+
 }
 
 
-void shuffle(){
-	int n_moves = 20;
-	for (int i = 0; i < n_moves; ++i) {
-		rotate_face(0,2,1);
-		glutPostRedisplay();
-	}
-}
+
 
 void display(){
 
@@ -269,11 +316,11 @@ void display(){
 
 				// translate to center of face
 				if (cur_axis == 0)
-					t   = translate((j-1)*1.2f, 0.0f, (k-1)*1.2f);
+					t   = translate((j-1)*1.0f, 0.0f, (k-1)*1.0f);
 				else if (cur_axis == 1)
-					t   = translate(0.0f, (i-1)*1.2f, (k-1)*1.2f);
+					t   = translate(0.0f, (i-1)*1.0f, (k-1)*1.0f);
 				else
-					t   = translate((j-1)*1.2f, (i-1)*1.2f, 0.0f);
+					t   = translate((j-1)*1.0f, (i-1)*1.0f, 0.0f);
 
 
 				//					t   = translate((j-1)*1.0f, (i-1)*1.0f, (k-1)*1.0f);
@@ -286,11 +333,11 @@ void display(){
 
 				// translate to position in face
 				if (cur_axis == 0)
-					t   = translate(0.0f, (i-1)*1.2f, 0.0f);
+					t   = translate(0.0f, (i-1)*1.0f, 0.0f);
 				else if (cur_axis == 1)
-					t   = translate((j-1)*1.2f, 0.0f, 0.0f);
+					t   = translate((j-1)*1.0f, 0.0f, 0.0f);
 				else
-					t   = translate(0.0f, 0.0f, (k-1)*1.2f);
+					t   = translate(0.0f, 0.0f, (k-1)*1.0f);
 
 
 				M_mat = rz*ry*rx*t*M_mat;
@@ -308,9 +355,6 @@ void display(){
 
 void keyboard_special(int key, int x, int y) {
 
-	switch (key) {
-
-	}
 }
 
 
@@ -321,6 +365,7 @@ void free_buffers(){
 void keyboard(unsigned char key, int x, int y) {
 	if (in_animation)
 		return;
+	first_animation = true;
 	switch (key) {
 	case 033:
 		cout << "exit" << endl;
@@ -408,11 +453,11 @@ void keyboard(unsigned char key, int x, int y) {
 		glutPostRedisplay();
 		break;
 
+	case '`':
+		shuffle();
+		break;
 
 	}
-
-
-
 
 }
 
@@ -452,6 +497,7 @@ vec3 get_arcball_vector(int x, int y) {
 
 
 void onIdle(){
+
 	if (cur_mx != last_mx || cur_my != last_my) {
 		vec3 va = get_arcball_vector(last_mx, last_my);
 		vec3 vb = get_arcball_vector( cur_mx,  cur_my);
@@ -491,8 +537,9 @@ void onMotion(int x, int y) {
 
 
 int main(int argc, char **argv) {
+	srand(time(NULL));
 	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_RGBA);
+	glutInitDisplayMode(GLUT_RGBA | GLUT_MULTISAMPLE);
 	glutInitWindowSize(screen_width, screen_height);
 
 	//	----------------------------------------
@@ -515,6 +562,7 @@ int main(int argc, char **argv) {
 	glutMouseFunc(onMouse);
 	glutMotionFunc(onMotion);
 	//	glutPassiveMotionFunc(onPassiveMotion);
+
 
 	glutMainLoop();
 	return 0;
