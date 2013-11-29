@@ -177,16 +177,6 @@ cube::~cube() {
 	glDeleteBuffers(1, &base_elements_ibo);
 }
 
-//TODO remove
-void cube::bind_position() {
-	glBindBuffer(GL_ARRAY_BUFFER, pos_vbo);
-}
-
-void cube::bind_color() {
-	glBindBuffer(GL_ARRAY_BUFFER, col_vbo);
-}
-
-
 void cube::draw(){
 	//	 draw base using buffer element
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, base_elements_ibo);

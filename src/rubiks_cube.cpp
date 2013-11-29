@@ -42,7 +42,7 @@ GLuint vao; // vao
 cube *c;
 int rubic[3][3][3];// contains the cube index [0..26]
 vec3 relative_angle[27]; // angle of rotation of cube around face center
-mat4 self_rot[27]; // self rotation matrix for each cube
+mat4 self_rotation[27]; // self rotation matrix for each cube
 
 vec3 eye(5,5,-10);
 
@@ -55,17 +55,20 @@ GLfloat anim_angle = 5; // animation angle starts with 0 and ends with 90
 int anim_angle_cnt = 0; // increment value of the animation angle
 
 int cur_col = 0, cur_axis = 0, cur_direction = 0;
-bool in_animation = false;
+bool in_animation = false; //  indicated that we are in the middle of animation
+// to disable accepting new rotations
+
+bool first_animation = true; // first time to call rotate face on animation
 
 
 void rotate_face(int axis, int col, int direction);
 
 bool win(){
-		for (int i = 0; i < 3; ++i)
-				for (int j = 0; j < 3; ++j)
-					for (int k = 0; k < 3; ++k)
-						if(rubic[i][j][k] != i*9 + j*3 + k)
-							return false;
+	for (int i = 0; i < 3; ++i)
+		for (int j = 0; j < 3; ++j)
+			for (int k = 0; k < 3; ++k)
+				if(rubic[i][j][k] != i*9 + j*3 + k)
+					return false;
 	return true;
 }
 
@@ -88,7 +91,7 @@ void init_buffers(){
 		for (int j = 0; j < 3; ++j)
 			for (int k = 0; k < 3; ++k){
 				rubic[i][j][k] = i*9 + j*3 + k;
-				self_rot[rubic[i][j][k]] = mat4(1.0);
+				self_rotation[rubic[i][j][k]] = mat4(1.0);
 				relative_angle[rubic[i][j][k]] = vec3(0.0f,0.0f,0.0f);
 			}
 
@@ -129,7 +132,6 @@ void init() {
 
 
 void animation(int i){
-	cout<<"a7ee a7ee"<<endl;
 	rotate_face(cur_axis, cur_col, cur_direction);
 	glutPostRedisplay();
 	if (i > 0)
@@ -139,7 +141,6 @@ void animation(int i){
 }
 
 
-bool first_animation = true;
 
 void rotate_face(int axis, int col, int direction){
 	in_animation = true;
@@ -151,7 +152,6 @@ void rotate_face(int axis, int col, int direction){
 	// col indicates the col number to be rotated {0, 2} // cant take value 1
 	// direction denotes the angle 1 up 	 0 = down
 
-	cout<<"rotate face "<<axis<<" "<<col<<" "<<direction<<endl;
 
 	int i=0, j=0; // loop indices
 	int *a,*b,*c; // rotation matrix indices
@@ -175,22 +175,12 @@ void rotate_face(int axis, int col, int direction){
 	default : return;
 	}
 
-	//	cout <<">>>"<<*b << " "<<*a<<" "<<*c<<endl;
 
 	int face[3][3]; // current face to rotate
 	// cubes to rotate
 	for ( i = 0; i < 3; ++i)
-		for (j = 0; j < 3; ++j){
+		for (j = 0; j < 3; ++j)
 			face[i][j] = rubic[*a][*b][*c];
-		}
-
-		for (j = 2; j >= 0; --j){
-			for ( i = 2; i >=0; --i){
-//				cout<<rubic[*a][*b][*c]<<" ";
-			}
-			cout<<endl;
-		}
-		cout<<endl;
 
 
 	GLfloat thres = 360-anim_angle;
@@ -198,64 +188,53 @@ void rotate_face(int axis, int col, int direction){
 	anim_angle_cnt++;
 
 	if (direction){
-			// direction up
-			for ( i = 0; i < 3; ++i)
-				for ( j = 0; j < 3; ++j){
-					relative_angle[rubic[*a][*b][*c]][axis] +=(relative_angle[rubic[*a][*b][*c]][axis]>thres?-thres : anim_angle);
-					// FIXME change condition to check on relative angle
-					if ( anim_angle > (90-anim_angle*anim_angle_cnt)){
-						last_animation = true;
-						cout<<"up"<<endl;
-						relative_angle[rubic[*a][*b][*c]][axis] = 0;
-							if (axis==0){
-								rubic[*a][*b][*c] = face[j][2-i];
-								self_rot[rubic[*a][*b][*c]] = rotate(90.0f, vec3(1,0,0))*self_rot[rubic[*a][*b][*c]];
-							}else if (axis==1){
-														rubic[*a][*b][*c] = face[2-j][i];
-														self_rot[rubic[*a][*b][*c]] = rotate(90.0f, vec3(0,1,0))*self_rot[rubic[*a][*b][*c]];
+		// direction up
+		for ( i = 0; i < 3; ++i)
+			for ( j = 0; j < 3; ++j){
+				relative_angle[rubic[*a][*b][*c]][axis] +=(relative_angle[rubic[*a][*b][*c]][axis]>thres?-thres : anim_angle);
+				if ( anim_angle > (90-anim_angle*anim_angle_cnt)){
+					last_animation = true;
+					relative_angle[rubic[*a][*b][*c]][axis] = 0;
 
-							}else if (axis ==2){
-							rubic[*a][*b][*c] = face[2-j][i];
-							self_rot[rubic[*a][*b][*c]] = rotate(90.0f, vec3(0,0,1))*self_rot[rubic[*a][*b][*c]];
+					if (axis==0){
+						rubic[*a][*b][*c] = face[j][2-i];
+						self_rotation[rubic[*a][*b][*c]] = rotate(90.0f, vec3(1,0,0))*self_rotation[rubic[*a][*b][*c]];
+					}else if (axis==1){
+						rubic[*a][*b][*c] = face[2-j][i];
+						self_rotation[rubic[*a][*b][*c]] = rotate(90.0f, vec3(0,1,0))*self_rotation[rubic[*a][*b][*c]];
 
-							}
+					}else if (axis ==2){
+						rubic[*a][*b][*c] = face[2-j][i];
+						self_rotation[rubic[*a][*b][*c]] = rotate(90.0f, vec3(0,0,1))*self_rotation[rubic[*a][*b][*c]];
+
 					}
 				}
+			}
 
-		} else {
-			// direction down
-			for (i = 0; i < 3; ++i)
-				for (j = 0; j < 3; ++j){
-					relative_angle[rubic[*a][*b][*c]][axis] -=(relative_angle[rubic[*a][*b][*c]][axis]<anim_angle?-thres : anim_angle);
-					if ( anim_angle > (90-anim_angle*anim_angle_cnt)){
-						last_animation = true;
-						cout<<"down"<<endl;
-						relative_angle[rubic[*a][*b][*c]][axis] = 0;
+	} else {
+		// direction down
+		for (i = 0; i < 3; ++i)
+			for (j = 0; j < 3; ++j){
+				relative_angle[rubic[*a][*b][*c]][axis] -=(relative_angle[rubic[*a][*b][*c]][axis]<anim_angle?-thres : anim_angle);
+				if ( anim_angle > (90-anim_angle*anim_angle_cnt)){
+					last_animation = true;
+					relative_angle[rubic[*a][*b][*c]][axis] = 0;
 
-							if (axis==0){
-								rubic[*a][*b][*c] = face[2-j][i];
-								self_rot[rubic[*a][*b][*c]] = rotate(-90.0f, vec3(1,0,0))*self_rot[rubic[*a][*b][*c]];
-							}else if (axis==1){
-								rubic[*a][*b][*c] = face[j][2-i];
-								self_rot[rubic[*a][*b][*c]] = rotate(-90.0f, vec3(0,1,0))*self_rot[rubic[*a][*b][*c]];
-							}else if (axis ==2){
-								rubic[*a][*b][*c] = face[j][2-i];
-								self_rot[rubic[*a][*b][*c]] = rotate(-90.0f, vec3(0,0,1))*self_rot[rubic[*a][*b][*c]];
-							}
+					if (axis==0){
+						rubic[*a][*b][*c] = face[2-j][i];
+						self_rotation[rubic[*a][*b][*c]] = rotate(-90.0f, vec3(1,0,0))*self_rotation[rubic[*a][*b][*c]];
+					}else if (axis==1){
+						rubic[*a][*b][*c] = face[j][2-i];
+						self_rotation[rubic[*a][*b][*c]] = rotate(-90.0f, vec3(0,1,0))*self_rotation[rubic[*a][*b][*c]];
+					}else if (axis ==2){
+						rubic[*a][*b][*c] = face[j][2-i];
+						self_rotation[rubic[*a][*b][*c]] = rotate(-90.0f, vec3(0,0,1))*self_rotation[rubic[*a][*b][*c]];
 					}
 				}
-		}
+			}
+	}
 
 	if (last_animation){
-				cout<<"after "<<endl;
-				for (j = 2; j >= 0; --j){
-					for ( i = 2; i >=0; --i){
-//						cout<<rubic[*a][*b][*c]<<" ";
-					}
-					cout<<endl;
-				}
-
-		cout<<"================"<<endl;
 		anim_angle_cnt = 0;
 		in_animation = false;
 		last_animation = false;
@@ -296,7 +275,7 @@ void display(){
 
 
 				//t   = translate((j-1)*1.0f, (i-1)*1.0f, (k-1)*1.0f);
-				mat4 cube_rotation = self_rot[rubic[i][j][k]];
+				mat4 cube_rotation = self_rotation[rubic[i][j][k]];
 				M_mat = t*cube_rotation;
 
 				mat4 rx  = rotate(relative_angle[rubic[i][j][k]].x, vec3(1,0,0));
