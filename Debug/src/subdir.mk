@@ -5,18 +5,15 @@
 # Add inputs and outputs from these tool invocations to the build variables 
 CPP_SRCS += \
 ../src/cube.cpp \
-../src/rubiks_cube.cpp \
-../src/test_cube.cpp 
+../src/rubiks_cube.cpp 
 
 OBJS += \
 ./src/cube.o \
-./src/rubiks_cube.o \
-./src/test_cube.o 
+./src/rubiks_cube.o 
 
 CPP_DEPS += \
 ./src/cube.d \
-./src/rubiks_cube.d \
-./src/test_cube.d 
+./src/rubiks_cube.d 
 
 
 # Each subdirectory must supply rules for building sources it contributes

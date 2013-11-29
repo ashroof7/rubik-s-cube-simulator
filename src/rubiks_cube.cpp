@@ -253,7 +253,6 @@ void rotate_face(int axis, int col, int direction){
 
 
 void display(){
-
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT); // clear the window//
 
 	glEnableVertexAttribArray(vao);
@@ -447,28 +446,6 @@ vec3 get_arcball_vector(int x, int y) {
 }
 
 
-void onIdle(){
-
-	if (cur_mx != last_mx || cur_my != last_my) {
-		vec3 va = get_arcball_vector(last_mx, last_my);
-		vec3 vb = get_arcball_vector( cur_mx,  cur_my);
-
-		// dot(va,vb) = ||va||.||vb||.cos(angle)
-		float angle = acos(  glm::min(1.0f, 1.0f*dot(va, vb)))*3;
-
-		vec3 axis_in_camera_coord = cross(va, vb);
-		mat3 camera2object = inverse(mat3(V_mat * W_mat));
-		vec3 axis_in_obj_coord =  camera2object * axis_in_camera_coord;
-		W_mat = rotate(W_mat, degrees(angle), axis_in_obj_coord);
-
-		last_mx = cur_mx;
-		last_my = cur_my;
-
-		glUniformMatrix4fv(W_loc, 1, false, value_ptr(W_mat));
-		glutPostRedisplay();
-	}
-}
-
 void onMouse(int button, int state, int x, int y) {
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
 		arcball_on = true;
@@ -476,6 +453,7 @@ void onMouse(int button, int state, int x, int y) {
 		last_my = cur_my = y;
 	} else {
 		arcball_on = false;
+
 	}
 }
 
@@ -483,6 +461,25 @@ void onMotion(int x, int y) {
 	if (arcball_on) {  // if left button is pressed
 		cur_mx = x;
 		cur_my = y;
+
+		if (cur_mx != last_mx || cur_my != last_my) {
+			vec3 va = get_arcball_vector(last_mx, last_my);
+			vec3 vb = get_arcball_vector( cur_mx,  cur_my);
+
+			// dot(va,vb) = ||va||.||vb||.cos(angle)
+			float angle = acos(  glm::min(1.0f, 1.0f*dot(va, vb)))*3;
+
+			vec3 axis_in_camera_coord = cross(va, vb);
+			mat3 camera2object = inverse(mat3(V_mat * W_mat));
+			vec3 axis_in_obj_coord =  camera2object * axis_in_camera_coord;
+			W_mat = rotate(W_mat, degrees(angle), axis_in_obj_coord);
+
+			last_mx = cur_mx;
+			last_my = cur_my;
+
+			glUniformMatrix4fv(W_loc, 1, false, value_ptr(W_mat));
+			glutPostRedisplay();
+		}
 	}
 }
 
@@ -505,15 +502,12 @@ int main(int argc, char **argv) {
 	glewInit();
 	init();
 
-	glutIdleFunc(onIdle);
 	glutDisplayFunc(display);
 	glutKeyboardFunc(keyboard);
 	glutSpecialFunc(keyboard_special);
 	glutReshapeFunc(onReshape);
 	glutMouseFunc(onMouse);
 	glutMotionFunc(onMotion);
-	//	glutPassiveMotionFunc(onPassiveMotion);
-
 
 	glutMainLoop();
 	return 0;
